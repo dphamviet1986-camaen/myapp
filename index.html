@@ -3,21 +3,24 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no,viewport-fit=cover">
-<title>Particle Pour</title>
-<!-- Pi SDK - must be in head -->
+<title>Blow Away Your Sadness</title>
 <script src="https://sdk.minepi.com/pi-sdk.js"></script>
-<script>Pi.init({ version: "2.0", sandbox: true })</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{width:100%;height:100%;overflow:hidden;background:#0a0a1a;font-family:-apple-system,BlinkMacSystemFont,sans-serif;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;position:fixed}
 #app{position:relative;width:100%;height:100%;display:flex;flex-direction:column}
 header{display:flex;align-items:center;justify-content:space-between;padding:6px 12px;background:rgba(255,255,255,0.04);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border-bottom:1px solid rgba(255,255,255,0.06);z-index:10;flex-shrink:0}
-h1{font-size:14px;font-weight:600;color:#fff;letter-spacing:0.3px}
+h1{font-size:14px;font-weight:600;color:#fff;letter-spacing:0.3px;flex-shrink:0}
 .modes{display:flex;gap:5px}
 .modes button{padding:5px 12px;border:1px solid rgba(255,255,255,0.15);border-radius:14px;background:transparent;color:rgba(255,255,255,0.5);font-size:11px;font-weight:500;cursor:pointer;transition:all .2s;-webkit-tap-highlight-color:transparent}
 .modes button.active{background:#4FC3F7;color:#000;border-color:#4FC3F7}
 .modes button:active{transform:scale(0.95)}
+.pi-auth{display:flex;align-items:center;gap:6px;flex-shrink:0}
+#signInBtn{padding:4px 10px;border:1px solid rgba(79,195,247,0.3);border-radius:14px;background:transparent;color:#4FC3F7;font-size:11px;font-weight:500;cursor:pointer;transition:all .2s;-webkit-tap-highlight-color:transparent}
+#signInBtn:active{transform:scale(0.95)}
+#signInBtn.loading{opacity:0.5;pointer-events:none}
+#userStatus{font-size:11px;color:#4FC3F7;display:none}
 #shapeBar{display:flex;align-items:center;gap:4px;padding:4px 12px;background:rgba(255,255,255,0.02);border-bottom:1px solid rgba(255,255,255,0.04);flex-shrink:0;overflow-x:auto;-webkit-overflow-scrolling:touch}
 #shapeBar span{font-size:10px;color:rgba(255,255,255,0.3);margin-right:4px;flex-shrink:0}
 #shapeBar button{padding:3px 10px;border:1px solid rgba(255,255,255,0.1);border-radius:10px;background:transparent;color:rgba(255,255,255,0.4);font-size:10px;cursor:pointer;transition:all .2s;white-space:nowrap;-webkit-tap-highlight-color:transparent;flex-shrink:0}
@@ -34,10 +37,14 @@ h1{font-size:14px;font-weight:600;color:#fff;letter-spacing:0.3px}
 <body>
 <div id="app">
   <header>
-    <h1>Particle Pour</h1>
+    <h1>Blow Away Your Sadness</h1>
     <div class="modes">
       <button id="waterBtn" class="active">Water</button>
       <button id="animalBtn">Animals</button>
+    </div>
+    <div class="pi-auth">
+      <button id="signInBtn">π Sign In</button>
+      <span id="userStatus"></span>
     </div>
   </header>
   <div id="shapeBar">
@@ -68,6 +75,69 @@ const permOverlay = document.getElementById('permOverlay')
 const permBtn = document.getElementById('permBtn')
 const loading = document.getElementById('loading')
 const shapeBtns = document.querySelectorAll('#shapeBar button')
+const signInBtn = document.getElementById('signInBtn')
+const userStatus = document.getElementById('userStatus')
+
+// --- Pi Network auth ---
+let piUser = null
+let piAccessToken = null
+let piAuthed = false
+
+async function initPi() {
+  try {
+    await Pi.init({ version: '2.0', sandbox: true })
+  } catch (e) {
+    console.warn('Pi.init failed:', e)
+    return
+  }
+  await doPiAuth()
+}
+
+async function doPiAuth() {
+  if (piAuthed) return
+  signInBtn.classList.add('loading')
+  signInBtn.textContent = 'Connecting...'
+  try {
+    const auth = await Pi.authenticate(['username'], function onPayment(p) {
+      console.warn('Incomplete payment:', p)
+    })
+    piAccessToken = auth.accessToken
+    const resp = await fetch('/api/auth/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ accessToken: piAccessToken })
+    })
+    if (resp.ok) {
+      const result = await resp.json()
+      if (result.valid) {
+        piUser = result.user
+        piAuthed = true
+      }
+    }
+    if (!piAuthed) {
+      piUser = { username: auth.user.username, uid: auth.user.uid }
+      piAuthed = true
+    }
+  } catch (e) {
+    console.warn('Pi auth failed:', e)
+  }
+  signInBtn.classList.remove('loading')
+  updatePiUI()
+}
+
+function updatePiUI() {
+  if (piAuthed && piUser) {
+    signInBtn.style.display = 'none'
+    userStatus.style.display = 'inline'
+    userStatus.textContent = `π ${piUser.username}`
+  } else {
+    signInBtn.style.display = 'inline'
+    signInBtn.textContent = 'π Sign In'
+    userStatus.style.display = 'none'
+  }
+}
+
+signInBtn.addEventListener('click', doPiAuth)
 
 // --- Matter.js setup ---
 const engine = Matter.Engine.create()
@@ -401,24 +471,10 @@ if (typeof Matter === 'undefined') {
 loading.style.display = 'none'
 resize()
 initOrientation()
+initPi()
 loop()
 
 })()
-</script>
-<!-- Pi Sign-In: place just before </body> -->
-<script>
-  window.onload = function() {
-    const Pi = window.Pi;
-    Pi.authenticate(["username"], function(payment) {
-      console.log("Incomplete payment:", payment);
-    })
-    .then(function(auth) {
-      console.log("Logged in as:", auth.user.username);
-    })
-    .catch(function(err) {
-      console.error("Pi auth error:", err);
-    });
-  };
 </script>
 </body>
 </html>
