@@ -1,5 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
+<script src="https://sdk.minepi.com/pi-sdk.js"></script>
+<script>Pi.init({ version: "2.0", sandbox: true })</script>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no,viewport-fit=cover">
@@ -212,7 +214,7 @@ function spawn() {
     const lit = 55 + Math.random() * 25
     data = { type: 'water', r, hue, sat, lit }
   } else {
-    const r = 18 + Math.random() * 12
+    const r = 14 + Math.random() * 10
     body = Matter.Bodies.circle(sx, -r, r, {
       restitution: 0.25 + Math.random() * 0.3,
       friction: 0.04,
@@ -402,5 +404,17 @@ loop()
 
 })()
 </script>
+const Pi = window.Pi;
+
+Pi.authenticate(["Camaen"], function(payment) {
+  // handles any unfinished payment from a previous session
+  console.log("Incomplete payment:", payment);
+})
+.then(function(auth) {
+  console.log("Logged in as:", auth.user.username);
+})
+.catch(function(err) {
+  console.error("Auth error:", err);
+});
 </body>
 </html>
